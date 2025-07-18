@@ -4,7 +4,9 @@ from api.db import db
 from api.models.orders import Orders
 from api.models.products import Products
 from api.models.users import Users
+from api.models.order_products import OrderProducts
 from datetime import datetime
+
 
 def create_app():
     app = Flask(__name__)
@@ -16,16 +18,59 @@ def create_app():
         orders = Orders.query.all()
         results = []
         for order in orders:
-            info = {
+            order_info = {
                 "id": order.id,
-                "user_id": order.user_id,
+                "userId": order.user_id,
                 "client": order.client,
                 "status": order.status,
-                "data_entry": order.data_entry,
-                "date_processed": order.date_processed
+                "dateEntry": order.date_entry,
+                "dateProcessed": order.date_processed,
+                "products": []
             }
-            results.append(info)
+            for prod in order.products_list:
+                product = prod.product
+                order_info["products"].append({
+                    "qty": prod.quantity,
+                    "product": {
+                        "id": product.id,
+                        "name": product.name,
+                        "price": product.price,
+                        "image": product.image,
+                        "type": product.type,
+                        "dateEntry": product.date_entry
+                    }
+                })
+            results.append(order_info)
         return {"orders": results}
+    
+    @app.route("/orders", methods=["POST"])
+    def create_orders():
+        data = request.get_json()
+        try:
+            new_order = Orders(
+                user_id=data.get("userId"),
+                client=data.get("client"),
+                status=data.get("status"),
+                date_entry=datetime.fromisoformat(data.get("dateEntry")),
+                date_processed=None
+            )
+            for item in data["products"]:
+                product_id = item["product"]["id"]
+                quantity = item["qty"]
+                product = Products.query.get(product_id)
+                if not product:
+                    return {"error": f"Producto con id {product_id} no existe"}, 400
+                order_product = OrderProducts(
+                    product_id=product_id,
+                    quantity=quantity
+                )
+                new_order.products_list.append(order_product)
+            db.session.add(new_order)
+            db.session.commit()
+            return {"message": "Orden creada correctamente", "order_id": new_order.id}
+        except Exception as e:
+            db.session.rollback()
+            return {"error": str(e)}, 500
 
     @app.route("/products", methods=["GET"])
     def get_products():
@@ -38,7 +83,7 @@ def create_app():
                 "price": product.price,
                 "image": product.image,
                 "type": product.type,
-                "date_entry": product.date_entry
+                "dateEntry": product.date_entry
             }
             results.append(info)
         return {"products": results}
@@ -47,7 +92,7 @@ def create_app():
     def create_products():
         if request.is_json:
             data = request.get_json()
-            date_entry_str = data.get("date_entry")
+            date_entry_str = data.get("dateEntry")
             if date_entry_str:
                 try:
                     date_entry = datetime.fromisoformat(date_entry_str)
@@ -82,6 +127,7 @@ def create_app():
         return {"users": results}
 
     return app
+
 
 if __name__ == "__main__":
     app = create_app()
