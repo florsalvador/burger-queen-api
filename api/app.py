@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from api.config import Config
 from api.db import db
 from api.models.orders import Orders
@@ -71,6 +71,30 @@ def create_app():
         except Exception as e:
             db.session.rollback()
             return {"error": str(e)}, 500
+        
+    @app.route("/orders/<int:id>", methods=["PATCH"])
+    def modify_orders(id):
+        data = request.get_json()
+        order = Orders.query.get(id)
+        if not order:
+            return jsonify({"error": "Order does not exist"}), 404
+        status = data.get("status")
+        date_processed = data.get("dateProcessed")
+        if not status or not date_processed:
+            return jsonify({"error": "Both 'status' and 'dateProcessed' are required."}), 400
+        try:
+            order.status = status
+            order.date_processed = datetime.fromisoformat(date_processed)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
+        response = {
+            "id": order.id,
+            "status": order.status,
+            "dateProcessed": order.date_processed.isoformat()
+        }
+        return jsonify(response), 200
 
     @app.route("/products", methods=["GET"])
     def get_products():
