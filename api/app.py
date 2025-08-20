@@ -4,7 +4,6 @@ from api.db import db
 from api.models.orders import Orders
 from api.models.products import Products
 from api.models.users import Users
-from api.models.order_products import OrderProducts
 from datetime import datetime
 
 
@@ -16,32 +15,7 @@ def create_app():
     @app.route("/orders", methods=["GET"])
     def get_orders():
         orders = Orders.query.all()
-        results = []
-        for order in orders:
-            order_info = {
-                "id": order.id,
-                "userId": order.user_id,
-                "client": order.client,
-                "status": order.status,
-                "dateEntry": order.date_entry,
-                "dateProcessed": order.date_processed,
-                "products": []
-            }
-            for prod in order.products_list:
-                product = prod.product
-                order_info["products"].append({
-                    "qty": prod.quantity,
-                    "product": {
-                        "id": product.id,
-                        "name": product.name,
-                        "price": product.price,
-                        "image": product.image,
-                        "type": product.type,
-                        "dateEntry": product.date_entry
-                    }
-                })
-            results.append(order_info)
-        return {"orders": results}
+        return jsonify([order.as_dict() for order in orders]), 200
     
     @app.route("/orders", methods=["POST"])
     def create_orders():
@@ -54,30 +28,22 @@ def create_app():
                 date_entry=datetime.fromisoformat(data.get("dateEntry")),
                 date_processed=None
             )
-            for item in data["products"]:
-                product_id = item["product"]["id"]
-                quantity = item["qty"]
-                product = Products.query.get(product_id)
-                if not product:
-                    return {"error": f"Producto con id {product_id} no existe"}, 400
-                order_product = OrderProducts(
-                    product_id=product_id,
-                    quantity=quantity
-                )
-                new_order.products_list.append(order_product)
-            db.session.add(new_order)
-            db.session.commit()
-            return {"message": "Orden creada correctamente", "order_id": new_order.id}
+            new_order.add_products(data["products"])
+            new_order.create()
+            return jsonify(new_order.as_dict()), 201
+        except ValueError as ve:
+            db.session.rollback()
+            return jsonify({"error": str(ve)}), 400
         except Exception as e:
             db.session.rollback()
-            return {"error": str(e)}, 500
-        
+            return jsonify({"error": str(e)}), 500
+    
     @app.route("/orders/<int:id>", methods=["PATCH"])
     def modify_orders(id):
         data = request.get_json()
         order = Orders.query.get(id)
         if not order:
-            return jsonify({"error": "Order does not exist"}), 404
+            return jsonify({"error": f"Order {id} does not exist"}), 404
         status = data.get("status")
         date_processed = data.get("dateProcessed")
         if not status or not date_processed:
@@ -85,25 +51,19 @@ def create_app():
         try:
             order.status = status
             order.date_processed = datetime.fromisoformat(date_processed)
-            db.session.commit()
+            order.update()
         except Exception as e:
             db.session.rollback()
             return jsonify({"error": str(e)}), 500
-        response = {
-            "id": order.id,
-            "status": order.status,
-            "dateProcessed": order.date_processed.isoformat()
-        }
-        return jsonify(response), 200
+        return jsonify(order.as_dict()), 200
         
     @app.route("/orders/<int:id>", methods=["DELETE"])
     def delete_orders(id):
         order = Orders.query.get(id)
         if not order:
-            return jsonify({"error": "Order does not exist"}), 404
+            return jsonify({"error": f"Order {id} does not exist"}), 404
         try:
-            db.session.delete(order)
-            db.session.commit()
+            order.delete()
             return jsonify({"message": f"Order {id} deleted successfully"}), 200
         except Exception as e:
             db.session.rollback()
