@@ -95,6 +95,19 @@ def create_app():
             "dateProcessed": order.date_processed.isoformat()
         }
         return jsonify(response), 200
+        
+    @app.route("/orders/<int:id>", methods=["DELETE"])
+    def delete_orders(id):
+        order = Orders.query.get(id)
+        if not order:
+            return jsonify({"error": "Order does not exist"}), 404
+        try:
+            db.session.delete(order)
+            db.session.commit()
+            return jsonify({"message": f"Order {id} deleted successfully"}), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
 
     @app.route("/products", methods=["GET"])
     def get_products():
@@ -121,7 +134,7 @@ def create_app():
                 try:
                     date_entry = datetime.fromisoformat(date_entry_str)
                 except ValueError:
-                    return {"error": "Invalid date format. Use ISO format like '2024-07-16T12:00:00'"}, 400
+                    return {"error": "Invalid date format."}, 400
             else:
                 date_entry = None
             new_product = Products(
