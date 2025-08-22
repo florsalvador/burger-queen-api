@@ -83,43 +83,71 @@ def create_app():
     @app.route("/products", methods=["GET"])
     def get_products():
         products = Products.query.all()
-        results = []
-        for product in products:
-            info = {
-                "id": product.id,
-                "name": product.name,
-                "price": product.price,
-                "image": product.image,
-                "type": product.type,
-                "dateEntry": product.date_entry
-            }
-            results.append(info)
-        return {"products": results}
-
+        return jsonify([product.as_dict() for product in products]), 200
+        
     @app.route("/products", methods=["POST"])
-    def create_products():
-        if request.is_json:
-            data = request.get_json()
-            date_entry_str = data.get("dateEntry")
-            if date_entry_str:
-                try:
-                    date_entry = datetime.fromisoformat(date_entry_str)
-                except ValueError:
-                    return {"error": "Invalid date format."}, 400
-            else:
-                date_entry = None
+    def create_product():
+        data = request.get_json()
+        required_fields = ["name", "price", "image", "type", "dateEntry"]
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"error": f"Missing field: {field}"}), 400
+        try:
+            date_entry = datetime.fromisoformat(data.get("dateEntry"))
+        except ValueError:
+            return jsonify({"error": "Invalid date format."}), 400
+        try:
             new_product = Products(
-                name=data["name"],
-                price=data["price"],
-                image=data["image"],
-                type=data["type"],
+                name=data.get("name"),
+                price=data.get("price"),
+                image=data.get("image"),
+                type=data.get("type"),
                 date_entry=date_entry
             )
-            db.session.add(new_product)
-            db.session.commit()
-            return {"message": f"Product {new_product.name} has been created successfully."}
-        else:
-            return {"error": "The request payload is not in JSON format"}, 400
+            new_product.create()
+            return jsonify(new_product.as_dict()), 201
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
+        
+    @app.route("/products/<int:id>", methods=["PATCH"])
+    def modify_product(id):
+        data = request.get_json()
+        product = Products.query.get(id)
+        if not product:
+            return jsonify({"error": f"Product {id} does not exist"}), 404
+        try:
+            if "dateEntry" in data:
+                try:
+                    product.date_entry = datetime.fromisoformat(data.get("dateEntry"))
+                except ValueError:
+                    return jsonify({"error": "Invalid date format."}), 400
+            if "name" in data:
+                product.name = data["name"]
+            if "price" in data:
+                product.price = data["price"]
+            if "image" in data:
+                product.image = data["image"]
+            if "type" in data:
+                product.type = data["type"]
+            product.update()
+            return jsonify(product.as_dict()), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
+    
+    @app.route("/products/<int:id>", methods=["DELETE"])
+    def delete_product(id):
+        product = Products.query.get(id)
+        if not product:
+            return jsonify({"error": f"Product {id} does not exist"}), 404
+        try:
+            response = product.as_dict()
+            product.delete()
+            return jsonify(response), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
 
     @app.route("/users", methods=["GET"])
     def get_users():
