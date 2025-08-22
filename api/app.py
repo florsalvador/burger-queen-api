@@ -52,6 +52,9 @@ def create_app():
         status = data.get("status")
         if not status:
             return jsonify({"error": "Missing 'status' field"}), 400
+        allowed_statuses = {"canceled", "ready", "delivered"}
+        if status not in allowed_statuses:
+            return jsonify({"error": f"Status must be one of {allowed_statuses}"}), 400
         order = Orders.query.get(id)
         if not order:
             return jsonify({"error": f"Order {id} does not exist"}), 404
