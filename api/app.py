@@ -1,11 +1,10 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from api.config import Config
 from api.db import db
 from api.models.orders import Orders
 from api.models.products import Products
 from api.models.users import Users
-from api.models.order_products import OrderProducts
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def create_app():
@@ -16,61 +15,70 @@ def create_app():
     @app.route("/orders", methods=["GET"])
     def get_orders():
         orders = Orders.query.all()
-        results = []
-        for order in orders:
-            order_info = {
-                "id": order.id,
-                "userId": order.user_id,
-                "client": order.client,
-                "status": order.status,
-                "dateEntry": order.date_entry,
-                "dateProcessed": order.date_processed,
-                "products": []
-            }
-            for prod in order.products_list:
-                product = prod.product
-                order_info["products"].append({
-                    "qty": prod.quantity,
-                    "product": {
-                        "id": product.id,
-                        "name": product.name,
-                        "price": product.price,
-                        "image": product.image,
-                        "type": product.type,
-                        "dateEntry": product.date_entry
-                    }
-                })
-            results.append(order_info)
-        return {"orders": results}
+        return jsonify([order.as_dict() for order in orders]), 200
     
     @app.route("/orders", methods=["POST"])
-    def create_orders():
+    def create_order():
         data = request.get_json()
+        required_fields = ["userId", "client", "status", "dateEntry", "products"]
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"error": f"Missing field: {field}"}), 400
+        try:
+            date_entry = datetime.fromisoformat(data.get("dateEntry"))
+        except ValueError:
+            return jsonify({"error": "Invalid date format."}), 400
         try:
             new_order = Orders(
                 user_id=data.get("userId"),
                 client=data.get("client"),
                 status=data.get("status"),
-                date_entry=datetime.fromisoformat(data.get("dateEntry")),
+                date_entry=date_entry,
                 date_processed=None
             )
-            for item in data["products"]:
-                product_id = item["product"]["id"]
-                quantity = item["qty"]
-                product = Products.query.get(product_id)
-                if not product:
-                    return {"error": f"Producto con id {product_id} no existe"}, 400
-                order_product = OrderProducts(
-                    product_id=product_id,
-                    quantity=quantity
-                )
-                new_order.products_list.append(order_product)
-            db.session.add(new_order)
-            db.session.commit()
-            return {"message": "Orden creada correctamente", "order_id": new_order.id}
+            new_order.add_products(data["products"])
+            new_order.create()
+            return jsonify(new_order.as_dict()), 201
+        except ValueError as ve:
+            db.session.rollback()
+            return jsonify({"error": str(ve)}), 400
         except Exception as e:
             db.session.rollback()
-            return {"error": str(e)}, 500
+            return jsonify({"error": str(e)}), 500
+    
+    @app.route("/orders/<int:id>", methods=["PATCH"])
+    def modify_order(id):
+        data = request.get_json()
+        status = data.get("status")
+        if not status:
+            return jsonify({"error": "Missing 'status' field"}), 400
+        allowed_statuses = {"canceled", "ready", "delivered"}
+        if status not in allowed_statuses:
+            return jsonify({"error": f"Status must be one of {allowed_statuses}"}), 400
+        order = Orders.query.get(id)
+        if not order:
+            return jsonify({"error": f"Order {id} does not exist"}), 404
+        try:
+            order.status = status
+            order.date_processed = datetime.now(timezone.utc)
+            order.update()
+            return jsonify(order.as_dict()), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
+        
+    @app.route("/orders/<int:id>", methods=["DELETE"])
+    def delete_order(id):
+        order = Orders.query.get(id)
+        if not order:
+            return jsonify({"error": f"Order {id} does not exist"}), 404
+        try:
+            response = order.as_dict()
+            order.delete()
+            return jsonify(response), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
 
     @app.route("/products", methods=["GET"])
     def get_products():
@@ -97,7 +105,7 @@ def create_app():
                 try:
                     date_entry = datetime.fromisoformat(date_entry_str)
                 except ValueError:
-                    return {"error": "Invalid date format. Use ISO format like '2024-07-16T12:00:00'"}, 400
+                    return {"error": "Invalid date format."}, 400
             else:
                 date_entry = None
             new_product = Products(
