@@ -4,7 +4,7 @@ from api.db import db
 from api.models.orders import Orders
 from api.models.products import Products
 from api.models.users import Users
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def create_app():
@@ -18,14 +18,22 @@ def create_app():
         return jsonify([order.as_dict() for order in orders]), 200
     
     @app.route("/orders", methods=["POST"])
-    def create_orders():
+    def create_order():
         data = request.get_json()
+        required_fields = ["userId", "client", "status", "dateEntry", "products"]
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"error": f"Missing field: {field}"}), 400
+        try:
+            date_entry = datetime.fromisoformat(data.get("dateEntry"))
+        except ValueError:
+            return jsonify({"error": "Invalid date format."}), 400
         try:
             new_order = Orders(
                 user_id=data.get("userId"),
                 client=data.get("client"),
                 status=data.get("status"),
-                date_entry=datetime.fromisoformat(data.get("dateEntry")),
+                date_entry=date_entry,
                 date_processed=None
             )
             new_order.add_products(data["products"])
@@ -39,32 +47,32 @@ def create_app():
             return jsonify({"error": str(e)}), 500
     
     @app.route("/orders/<int:id>", methods=["PATCH"])
-    def modify_orders(id):
+    def modify_order(id):
         data = request.get_json()
+        status = data.get("status")
+        if not status:
+            return jsonify({"error": "Missing 'status' field"}), 400
         order = Orders.query.get(id)
         if not order:
             return jsonify({"error": f"Order {id} does not exist"}), 404
-        status = data.get("status")
-        date_processed = data.get("dateProcessed")
-        if not status or not date_processed:
-            return jsonify({"error": "Both 'status' and 'dateProcessed' are required."}), 400
         try:
             order.status = status
-            order.date_processed = datetime.fromisoformat(date_processed)
+            order.date_processed = datetime.now(timezone.utc)
             order.update()
+            return jsonify(order.as_dict()), 200
         except Exception as e:
             db.session.rollback()
             return jsonify({"error": str(e)}), 500
-        return jsonify(order.as_dict()), 200
         
     @app.route("/orders/<int:id>", methods=["DELETE"])
-    def delete_orders(id):
+    def delete_order(id):
         order = Orders.query.get(id)
         if not order:
             return jsonify({"error": f"Order {id} does not exist"}), 404
         try:
+            response = order.as_dict()
             order.delete()
-            return jsonify({"message": f"Order {id} deleted successfully"}), 200
+            return jsonify(response), 200
         except Exception as e:
             db.session.rollback()
             return jsonify({"error": str(e)}), 500
