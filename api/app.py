@@ -152,15 +152,26 @@ def create_app():
     @app.route("/users", methods=["GET"])
     def get_users():
         users = Users.query.all()
-        results = [
-            {
-                "id": user.id,
-                "role": user.role,
-                "email": user.email,
-                "password": user.password
-            } for user in users
-        ]
-        return {"users": results}
+        return jsonify([user.as_dict() for user in users]), 200
+    
+    @app.route("/users", methods=["POST"])
+    def create_user():
+        data = request.get_json()
+        required_fields = ["role", "email", "password"]
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"error": f"Missing field: {field}"}), 400
+        try:
+            new_user = Users(
+                role=data.get("role"),
+                email=data.get("email"),
+                password=data.get("password")
+            )
+            new_user.create()
+            return jsonify(new_user.as_dict()), 201
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
 
     return app
 
