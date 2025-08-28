@@ -11,13 +11,15 @@ from flask_jwt_extended import (
     jwt_required, 
     JWTManager
 )
+from flask_bcrypt import Bcrypt
 
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
-    jwt = JWTManager(app)
     db.init_app(app)
+    jwt = JWTManager(app)
+    bcrypt = Bcrypt(app)
 
     @app.route("/orders", methods=["GET"])
     @jwt_required()
@@ -182,7 +184,7 @@ def create_app():
             new_user = Users(
                 role=data.get("role"),
                 email=data.get("email"),
-                password=data.get("password")
+                password=bcrypt.generate_password_hash(data.get("password")).decode("utf-8")
             )
             new_user.create()
             return jsonify(new_user.as_dict()), 201
@@ -201,9 +203,9 @@ def create_app():
             if "role" in data:
                 user.role = data["role"]
             if "email" in data:
-                user.email = data["email"]
+                user.email =  data["email"]
             if "password" in data:
-                user.password = data["password"]
+                user.password = bcrypt.generate_password_hash(data["password"]).decode("utf-8")
             user.update()
             return jsonify(user.as_dict()), 200
         except Exception as e:
@@ -233,7 +235,7 @@ def create_app():
         except KeyError:
             return jsonify({"error": "Missing email or password"}), 400
         user = Users.query.filter(Users.email == email).first()
-        if user:
+        if user and bcrypt.check_password_hash(user.password, password):
             access_token = create_access_token(identity=str(user.id))
             response = {
                 "accessToken": access_token,
