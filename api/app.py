@@ -175,11 +175,18 @@ def create_app():
     @app.route("/users", methods=["POST"])
     @jwt_required()
     def create_user():
+        current_user = get_jwt_identity()
+        current_user_data = Users.query.get(current_user)
+        if current_user_data.role != "admin":
+            return jsonify({"error": "Only admins can create users"}), 403
         data = request.get_json()
         required_fields = ["role", "email", "password"]
         for field in required_fields:
             if field not in data:
                 return jsonify({"error": f"Missing field: {field}"}), 400
+        user = Users.query.filter(Users.email == data.get("email")).first()
+        if user:
+            return jsonify({"error": "User already exists"}), 409
         try:
             new_user = Users(
                 role=data.get("role"),
@@ -195,6 +202,10 @@ def create_app():
     @app.route("/users/<int:id>", methods=["PATCH"])
     @jwt_required()
     def modify_user(id):
+        current_user = get_jwt_identity()
+        current_user_data = Users.query.get(current_user)
+        if current_user_data.role != "admin":
+            return jsonify({"error": "Only admins can modify users"}), 403
         data = request.get_json()
         user = Users.query.get(id)
         if not user:
@@ -215,6 +226,10 @@ def create_app():
     @app.route("/users/<int:id>", methods=["DELETE"])
     @jwt_required()
     def delete_user(id):
+        current_user = get_jwt_identity()
+        current_user_data = Users.query.get(current_user)
+        if current_user_data.role != "admin":
+            return jsonify({"error": "Only admins can delete users"}), 403
         user = Users.query.get(id)
         if not user:
             return jsonify({"error": "User does not exist"}), 404
