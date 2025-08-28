@@ -10,9 +10,23 @@ class Products(db.Model):
     type = db.Column(db.String())
     date_entry = db.Column(db.DateTime, nullable=True)
 
-    def __init__(self, name, price, image, type, date_entry):
-        self.name = name
-        self.price = price
-        self.image = image
-        self.type = type
-        self.date_entry = date_entry
+    def create(self):
+        db.session.add(self)
+        db.session.commit()
+
+    def update(self):
+        db.session.commit()
+
+    def delete(self):
+        db.session.delete(self)
+        db.session.commit()
+
+    def as_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "price": self.price,
+            "image": self.image,
+            "type": self.type,
+            "dateEntry": self.date_entry
+        }

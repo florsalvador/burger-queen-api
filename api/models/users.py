@@ -8,7 +8,21 @@ class Users(db.Model):
     email = db.Column(db.String())
     password = db.Column(db.String())
 
-    def __init__(self, role, email, password):
-        self.role = role
-        self.email = email
-        self.password = password
+    def create(self):
+        db.session.add(self)
+        db.session.commit()
+
+    def update(self):
+        db.session.commit()
+
+    def delete(self):
+        db.session.delete(self)
+        db.session.commit()
+
+    def as_dict(self):
+        return {
+            "id": self.id,
+            "role": self.role,
+            "email": self.email,
+            "password": self.password
+        }
