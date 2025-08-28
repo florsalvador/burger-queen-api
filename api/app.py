@@ -5,19 +5,28 @@ from api.models.orders import Orders
 from api.models.products import Products
 from api.models.users import Users
 from datetime import datetime, timezone
+from flask_jwt_extended import (
+    create_access_token, 
+    get_jwt_identity, 
+    jwt_required, 
+    JWTManager
+)
 
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
+    jwt = JWTManager(app)
     db.init_app(app)
 
     @app.route("/orders", methods=["GET"])
+    @jwt_required()
     def get_orders():
         orders = Orders.query.all()
         return jsonify([order.as_dict() for order in orders]), 200
     
     @app.route("/orders", methods=["POST"])
+    @jwt_required()
     def create_order():
         data = request.get_json()
         required_fields = ["userId", "client", "status", "dateEntry", "products"]
@@ -47,6 +56,7 @@ def create_app():
             return jsonify({"error": str(e)}), 500
     
     @app.route("/orders/<int:id>", methods=["PATCH"])
+    @jwt_required()
     def modify_order(id):
         data = request.get_json()
         status = data.get("status")
@@ -68,6 +78,7 @@ def create_app():
             return jsonify({"error": str(e)}), 500
         
     @app.route("/orders/<int:id>", methods=["DELETE"])
+    @jwt_required()
     def delete_order(id):
         order = Orders.query.get(id)
         if not order:
@@ -81,11 +92,13 @@ def create_app():
             return jsonify({"error": str(e)}), 500
 
     @app.route("/products", methods=["GET"])
+    @jwt_required()
     def get_products():
         products = Products.query.all()
         return jsonify([product.as_dict() for product in products]), 200
         
     @app.route("/products", methods=["POST"])
+    @jwt_required()
     def create_product():
         data = request.get_json()
         required_fields = ["name", "price", "image", "type", "dateEntry"]
@@ -111,6 +124,7 @@ def create_app():
             return jsonify({"error": str(e)}), 500
         
     @app.route("/products/<int:id>", methods=["PATCH"])
+    @jwt_required()
     def modify_product(id):
         data = request.get_json()
         product = Products.query.get(id)
@@ -137,6 +151,7 @@ def create_app():
             return jsonify({"error": str(e)}), 500
     
     @app.route("/products/<int:id>", methods=["DELETE"])
+    @jwt_required()
     def delete_product(id):
         product = Products.query.get(id)
         if not product:
@@ -150,11 +165,13 @@ def create_app():
             return jsonify({"error": str(e)}), 500
 
     @app.route("/users", methods=["GET"])
+    @jwt_required()
     def get_users():
         users = Users.query.all()
         return jsonify([user.as_dict() for user in users]), 200
     
     @app.route("/users", methods=["POST"])
+    @jwt_required()
     def create_user():
         data = request.get_json()
         required_fields = ["role", "email", "password"]
@@ -174,6 +191,7 @@ def create_app():
             return jsonify({"error": str(e)}), 500
         
     @app.route("/users/<int:id>", methods=["PATCH"])
+    @jwt_required()
     def modify_user(id):
         data = request.get_json()
         user = Users.query.get(id)
@@ -193,6 +211,7 @@ def create_app():
             return jsonify({"error": str(e)}), 500
         
     @app.route("/users/<int:id>", methods=["DELETE"])
+    @jwt_required()
     def delete_user(id):
         user = Users.query.get(id)
         if not user:
@@ -204,6 +223,24 @@ def create_app():
         except Exception as e:
             db.session.rollback()
             return jsonify({"error": str(e)}), 500
+        
+    @app.route("/login", methods=["POST"])
+    def login():
+        data = request.get_json()
+        try:
+            email = data["email"]
+            password = data["password"]
+        except KeyError:
+            return jsonify({"error": "Missing email or password"}), 400
+        user = Users.query.filter(Users.email == email).first()
+        if user:
+            access_token = create_access_token(identity=str(user.id))
+            response = {
+                "accessToken": access_token,
+                "user": {"id": user.id, "email": user.email}
+            }
+            return jsonify(response), 200
+        return jsonify({"error": "Email or password incorrect"}), 401
 
     return app
 
