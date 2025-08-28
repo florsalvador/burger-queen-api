@@ -21,7 +21,7 @@ def create_app():
     db.init_app(app)
     jwt = JWTManager(app)
     bcrypt = Bcrypt(app)
-    CORS(app, origins=["https://burger-queen-seven.vercel.app/"])
+    CORS(app, origins=["https://burger-queen-seven.vercel.app"])
 
     @app.route("/orders", methods=["GET"])
     @jwt_required()
@@ -260,10 +260,14 @@ def create_app():
             }
             return jsonify(response), 200
         return jsonify({"error": "Email or password incorrect"}), 401
+    
+    @app.route("/health", methods=["GET"])
+    def health():
+        return jsonify({"status": "ok"}), 200
 
     return app
 
 
 if __name__ == "__main__":
     app = create_app()
-    app.run(debug=True)
+    app.run()
