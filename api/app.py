@@ -12,6 +12,7 @@ from flask_jwt_extended import (
     JWTManager
 )
 from flask_bcrypt import Bcrypt
+from flask_cors import CORS
 
 
 def create_app():
@@ -20,6 +21,7 @@ def create_app():
     db.init_app(app)
     jwt = JWTManager(app)
     bcrypt = Bcrypt(app)
+    CORS(app, origins=["https://burger-queen-seven.vercel.app/"])
 
     @app.route("/orders", methods=["GET"])
     @jwt_required()
