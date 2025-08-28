@@ -172,6 +172,38 @@ def create_app():
         except Exception as e:
             db.session.rollback()
             return jsonify({"error": str(e)}), 500
+        
+    @app.route("/users/<int:id>", methods=["PATCH"])
+    def modify_user(id):
+        data = request.get_json()
+        user = Users.query.get(id)
+        if not user:
+            return jsonify({"error": f"User does not exist"}), 404
+        try:
+            if "role" in data:
+                user.role = data["role"]
+            if "email" in data:
+                user.email = data["email"]
+            if "password" in data:
+                user.password = data["password"]
+            user.update()
+            return jsonify(user.as_dict()), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
+        
+    @app.route("/users/<int:id>", methods=["DELETE"])
+    def delete_user(id):
+        user = Users.query.get(id)
+        if not user:
+            return jsonify({"error": "User does not exist"}), 404
+        try:
+            response = user.as_dict()
+            user.delete()
+            return jsonify(response), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 500
 
     return app
 
