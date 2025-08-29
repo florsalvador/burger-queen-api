@@ -21,7 +21,8 @@ def create_app():
     db.init_app(app)
     jwt = JWTManager(app)
     bcrypt = Bcrypt(app)
-    CORS(app, origins=["https://burger-queen-seven.vercel.app"])
+    # CORS(app, origins=["https://burger-queen-seven.vercel.app"])
+    CORS(app, resources={r"/*": {"origins": "*"}})
 
     @app.route("/orders", methods=["GET"])
     @jwt_required()
