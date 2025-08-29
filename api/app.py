@@ -257,7 +257,7 @@ def create_app():
             access_token = create_access_token(identity=str(user.id))
             response = {
                 "accessToken": access_token,
-                "user": {"id": user.id, "email": user.email}
+                "user": {"id": user.id, "email": user.email, "role": user.role}
             }
             return jsonify(response), 200
         return jsonify({"error": "Email or password incorrect"}), 401
