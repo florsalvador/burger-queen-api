@@ -265,6 +265,10 @@ def create_app():
     @app.route("/health", methods=["GET"])
     def health():
         return jsonify({"status": "ok"}), 200
+    
+    @app.route("/")
+    def index():
+        return jsonify({"message": "API is running"}), 200
 
     return app
 
