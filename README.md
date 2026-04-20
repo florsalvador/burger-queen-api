@@ -32,7 +32,7 @@ The API was developed to be consumed by the [Burger Queen frontend app](https://
 
 The API is deployed on Render: 👉 [Live API](https://burger-queen-api-cqif.onrender.com)
 
-⚠️ **Note:** Since it is hosted on Render (free plan), the server may take up to **30 seconds** to wake up after inactivity.
+⚠️ **Note:** The first request after a period of inactivity may fail. Simply retry and it will work.
 
 ### Test Credentials
 
